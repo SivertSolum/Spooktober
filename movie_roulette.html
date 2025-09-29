@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spooktober Roulette</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Darker background with subtle Tim Burton-esque trees */
+            background-color: #0d0d0d;
+            background-image:
+                radial-gradient(ellipse at top, transparent 0%, #0d0d0d 80%),
+                url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M 20 100 L 20 60 C 20 60 15 50 25 50 L 25 60 M 20 70 L 10 60 M 25 55 L 35 45 M 80 100 L 75 40 C 75 40 65 35 85 35 C 85 35 95 40 90 50 L 88 100 M 78 80 L 65 70 M 87 60 L 100 50' stroke='%231a1a1a' stroke-width='1.5' fill='none' /%3E%3C/svg%3E");
+            background-size: auto, 200px;
+            background-position: center top, center bottom;
+            background-repeat: no-repeat, repeat-x;
+            position: relative; 
+            overflow-x: hidden; 
+        }
+        
+        .font-creepster {
+            font-family: 'Creepster', cursive;
+        }
+
+        /* Reduced spooky glow/flicker animation for the title */
+        @keyframes flicker {
+            0%, 100% {
+                text-shadow: 0 0 3px #ff7800, 0 0 6px #e15f00;
+                opacity: 0.95;
+            }
+            50% {
+                text-shadow: 0 0 5px #ff7800, 0 0 10px #e15f00;
+                opacity: 1;
+            }
+        }
+        .title-animate {
+            animation: flicker 2.5s infinite alternate ease-in-out;
+        }
+
+        /* New darker, simpler pointer with bobbing animation */
+        #pointer {
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-top: 25px solid #4a044e; /* Darker purple */
+            position: absolute;
+            top: -5px; 
+            left: 50%;
+            z-index: 10;
+            filter: drop-shadow(0 2px 2px rgba(0,0,0,0.5));
+            animation: bob 3s infinite ease-in-out;
+        }
+        
+        @keyframes bob {
+            0%, 100% { transform: translate(-50%, 0); }
+            50% { transform: translate(-50%, -5px); }
+        }
+
+        /* Pulse animation for the spin button */
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+        #spin-button:not(:disabled) {
+            animation: pulse 2.5s infinite;
+        }
+         #spin-button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+
+        /* Spooky pop-in animation for the modal */
+        @keyframes pop-in {
+            0% {
+                opacity: 0;
+                transform: scale(0.5) rotate(-15deg);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1) rotate(0deg);
+            }
+        }
+        .animate-pop-in {
+            animation: pop-in 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="text-center mb-8 z-10">
+        <h1 class="font-creepster text-6xl md:text-8xl text-orange-500 title-animate">Spooktober Roulette</h1>
+        <p class="text-gray-500 mt-2">Spin the wheel... if you dare!</p>
+    </div>
+
+    <!-- Container for the wheel and pointer -->
+    <div id="wheel-container" class="relative w-full max-w-[350px] md:max-w-[500px] aspect-square flex items-center justify-center mb-8 z-10">
+        <div id="pointer"></div>
+        <canvas id="movie-wheel" width="500" height="500"></canvas>
+    </div>
+    
+    <button id="spin-button" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-8 rounded-full text-xl shadow-lg border-2 border-orange-800 transition-all duration-200 ease-in-out disabled:bg-gray-700 disabled:border-gray-600 disabled:cursor-not-allowed disabled:animation-none z-10">
+        Spin the Wheel!
+    </button>
+    <p id="loading-text" class="text-gray-500 mt-4 z-10">Conjuring movies from the ether...</p>
+    
+    <!-- Modal for displaying the result -->
+    <div id="result-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50 p-4">
+        <div id="modal-content" class="bg-gray-800 border-2 border-purple-800 rounded-lg shadow-2xl p-8 text-center max-w-sm w-full">
+            <h2 class="font-creepster text-4xl mb-2 text-purple-400">Your Fate is Sealed...</h2>
+            <p id="movie-title" class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-red-500 mb-1"></p>
+            <p id="movie-year" class="text-lg text-gray-400 mb-6"></p>
+            <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
+                <a id="letterboxd-link" href="#" target="_blank" rel="noopener noreferrer" class="bg-green-700 hover:bg-green-800 text-white font-bold py-2 px-6 rounded-full transition-colors w-full sm:w-auto">
+                    Letterboxd link
+                </a>
+                <button id="close-modal" class="bg-red-700 hover:bg-red-800 text-white font-bold py-2 px-6 rounded-full transition-colors w-full sm:w-auto">
+                    Flee!
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        const canvas = document.getElementById('movie-wheel');
+        const ctx = canvas.getContext('2d');
+        const spinButton = document.getElementById('spin-button');
+        const loadingText = document.getElementById('loading-text');
+        const resultModal = document.getElementById('result-modal');
+        const modalContent = document.getElementById('modal-content');
+        const closeModalButton = document.getElementById('close-modal');
+        const movieTitleEl = document.getElementById('movie-title');
+        const movieYearEl = document.getElementById('movie-year');
+        const letterboxdLink = document.getElementById('letterboxd-link');
+        
+        let movies = [];
+        let currentRotation = 0;
+        let isSpinning = false;
+        
+        // Toned-down, darker Halloween-themed color palette
+        const colors = ["#4c1d95", "#581c87", "#86198f", "#9d174d", "#7f1d1d", "#be123c"];
+        const friction = 0.99; 
+        let spinVelocity = 0;
+
+        // The URL for your published Google Sheet CSV
+        const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTxzeoopbw1vHYrAwgiivrpA1zwRvBFMfgIWtoMq-UIi-hqN6BRJq-tHklFIDYfV3rEw3aSD60aUrFP/pub?output=csv';
+
+        // Using a reliable CORS proxy
+        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(csvUrl)}`;
+        
+        const emblemImage = new Image();
+        let emblemLoaded = false;
+        emblemImage.src = "data:image/png;base64,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qP/D4t+V/wPyL/V+9/Uvuv1vlv/l+f+A+0fPv6j4Z8u/avkvzv9K+bfCv7T4d5F/ifq32n7n0r/gfhfsv3H71/h/SvnP9L+JfuX5H/l+V/M/tvkP1L+Dfu3u37b679p+f/OfcflvxX436L+1+5ftfnf9f0fy/5n8d+09+/Xv/v1b/v+f/Gfjvq/23y39z/N+F/e/o/V//f7v73+7+3+//L+3+V+l/t/ufq/i3z3xX477X/R+f/wPy31f6v1P+f477n9N9Z++f3P9v8p97+BfoXwL8e+c/R/+f1/9P8L+H/hP83yf8V/z/3/zL+P0D+zfvflH4B/EflP+H+Vf5/Vv/Phv/n/H8t/3+t//+S/Vfnv8P5L9X/e+1/8v+n+38x/p/k/0/1f7L8H/7/6v5f/P+D/N8i/l8f/2/S//uS/98e/+/C/z/G//t4+j//vj//P2/7//D3//D39/6/h8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8fHx8-";
+
+        // Fetches and parses movie data from the CSV file
+        async function loadMovies() {
+            spinButton.disabled = true;
+            try {
+                // Add cache-busting headers to ensure browsers always fetch the newest data
+                const response = await fetch(`${proxyUrl}&t=${new Date().getTime()}`, {
+                    method: 'GET',
+                    cache: 'no-store', // Tells the browser not to cache the response at all
+                    headers: {
+                        'Cache-Control': 'no-cache', // For HTTP/1.1 proxies
+                        'Pragma': 'no-cache', // For HTTP/1.0 proxies
+                        'Expires': '0' // For older proxies
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const csvText = await response.text();
+                
+                movies = csvText.trim().split('\n').slice(1).map(row => {
+                    const [title, year] = row.split(',');
+                    return { title: title ? title.trim() : '', year: year ? year.trim() : '' };
+                }).filter(movie => movie.title);
+
+                if (movies.length > 0) {
+                    loadingText.textContent = `Summoned ${movies.length} films. Ready to spin!`;
+                    spinButton.disabled = false;
+                    drawWheel();
+                } else {
+                     loadingText.textContent = 'The spirits could not find any movies.';
+                }
+            } catch (error) {
+                console.error("Error loading movies:", error);
+                loadingText.textContent = 'Failed to load movies. The connection is dead.';
+            }
+        }
+
+        // Draws a segment of the wheel
+        function drawSegment(key, lastAngle, angle) {
+            const size = canvas.width / 2;
+            ctx.fillStyle = colors[key % colors.length];
+            ctx.beginPath();
+            ctx.moveTo(size, size);
+            ctx.arc(size, size, size - 10, lastAngle, angle);
+            ctx.lineTo(size, size);
+            ctx.fill();
+        }
+
+        // Draws the text on a segment with dynamic font size
+        function drawSegmentText(key, angle) {
+            const size = canvas.width / 2;
+            const text = movies[key].title;
+            
+            // Dynamic font size calculation
+            const baseSize = 18;
+            const minSize = 9;
+            const scaleFactor = 0.15;
+            let fontSize = Math.max(minSize, baseSize - (movies.length * scaleFactor));
+
+            ctx.save();
+            ctx.translate(size, size);
+            ctx.rotate(angle);
+            ctx.textAlign = "right";
+            ctx.fillStyle = "#fff";
+            ctx.font = `bold ${fontSize}px Inter`;
+            ctx.shadowColor = 'rgba(0,0,0,0.7)';
+            ctx.shadowBlur = 5;
+            ctx.fillText(text, size - 25, fontSize / 3);
+            ctx.restore();
+        }
+        
+        function drawWheel() {
+            if (!canvas.getContext) return;
+            const size = canvas.width / 2;
+            const angle = (2 * Math.PI) / movies.length;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(size, size);
+            ctx.rotate(currentRotation);
+            ctx.translate(-size, -size);
+
+            movies.forEach((movie, i) => {
+                const lastAngle = angle * i;
+                const currentAngle = angle * (i + 1);
+                drawSegment(i, lastAngle, currentAngle);
+                drawSegmentText(i, (lastAngle + currentAngle) / 2);
+            });
+            ctx.restore();
+
+             // Draw the emblem in the center if it's loaded
+            if (emblemLoaded) {
+                const emblemRadius = 80;
+                const emblemSize = emblemRadius * 2;
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(size, size, emblemRadius, 0, Math.PI * 2, true);
+                ctx.strokeStyle = '#374151'; // a dark gray border
+                ctx.lineWidth = 5;
+                ctx.stroke();
+                ctx.clip();
+                ctx.drawImage(emblemImage, size - emblemRadius, size - emblemRadius, emblemSize, emblemSize);
+                ctx.restore();
+            }
+        }
+        
+        function animateSpin() {
+            if (!isSpinning) return;
+            spinVelocity *= friction;
+            
+            if (Math.abs(spinVelocity) < 0.002) {
+                isSpinning = false;
+                spinVelocity = 0;
+                determineWinner();
+                return;
+            }
+            
+            currentRotation += spinVelocity;
+            drawWheel();
+            requestAnimationFrame(animateSpin);
+        }
+
+        function spin() {
+            if (isSpinning) return;
+            isSpinning = true;
+            spinButton.disabled = true;
+            spinVelocity = (Math.random() * 0.4) + 0.4;
+            animateSpin();
+        }
+
+        function determineWinner() {
+            const degrees = currentRotation * 180 / Math.PI;
+            const normalizedDeg = (degrees % 360 + 360) % 360;
+            const segmentAngle = 360 / movies.length;
+            const winningSegmentIndex = Math.floor((360 - normalizedDeg + 270) % 360 / segmentAngle);
+            const winner = movies[winningSegmentIndex];
+            
+            showWinner(winner);
+        }
+        
+        function showWinner(movie) {
+            movieTitleEl.textContent = movie.title;
+            movieYearEl.textContent = `Released: ${movie.year}`;
+            
+            const letterboxdQuery = encodeURIComponent(movie.title);
+            const letterboxdUrl = `https://letterboxd.com/search/${letterboxdQuery}/?adult`;
+            letterboxdLink.href = letterboxdUrl;
+            
+            resultModal.classList.remove('hidden');
+            modalContent.classList.add('animate-pop-in');
+        }
+
+        // Event Listeners
+        spinButton.addEventListener('click', spin);
+        closeModalButton.addEventListener('click', () => {
+            resultModal.classList.add('hidden');
+            modalContent.classList.remove('animate-pop-in'); // Reset animation
+            spinButton.disabled = false;
+        });
+        
+        // Initial load
+        window.onload = () => {
+            loadMovies();
+            emblemImage.onload = () => {
+                emblemLoaded = true;
+                drawWheel(); // Redraw wheel with emblem once it's loaded
+            };
+        };
+    </script>
+
+</body>
+</html>
+
+
